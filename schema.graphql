@@ -1,0 +1,6 @@
+type ExampleEntity @entity {
+  id: Bytes!
+  count: BigInt!
+  conditionId: Bytes! # bytes32
+  oracle: Bytes! # address
+}
