@@ -1,81 +1,160 @@
-import { BigInt } from "@graphprotocol/graph-ts"
+import { BigInt, Address, Bytes } from "@graphprotocol/graph-ts";
 import {
   CTF,
   ConditionPreparation,
-  ConditionResolution,
-  PositionSplit,
-  PositionsMerge,
-  PayoutRedemption,
   TransferSingle,
   TransferBatch,
-  ApprovalForAll,
-  URI
-} from "../generated/CTF/CTF"
-import { ExampleEntity } from "../generated/schema"
+} from "../generated/CTF/CTF";
+import {
+  NetUserBalance,
+  TokenIdCondition,
+  UserBalance,
+} from "../generated/schema";
+import { usdcAddress } from "./utils/constants";
+import { AddressZero } from "@ethersproject/constants";
 
 export function handleConditionPreparation(event: ConditionPreparation): void {
-  // Entities can be loaded from the store using a string ID; this ID
-  // needs to be unique across all entities of the same type
-  let entity = ExampleEntity.load(event.transaction.from)
-
-  // Entities only exist after they have been saved to the store;
-  // `null` checks allow to create entities on demand
-  if (!entity) {
-    entity = new ExampleEntity(event.transaction.from)
-
-    // Entity fields can be set using simple assignments
-    entity.count = BigInt.fromI32(0)
+  if (event.params.outcomeSlotCount != new BigInt(2)) {
+    // only handle binary case
+    return;
   }
+  let conditionId = event.params.conditionId;
 
-  // BigInt and BigDecimal math are supported
-  entity.count = entity.count + BigInt.fromI32(1)
+  const conditionalToken = CTF.bind(
+    Address.fromString(event.address.toHexString())
+  );
 
-  // Entity fields can be set based on event parameters
-  entity.conditionId = event.params.conditionId
-  entity.oracle = event.params.oracle
+  const collectionIdOne = conditionalToken.getCollectionId(
+    Bytes.fromUTF8(""),
+    conditionId,
+    BigInt.fromI32(1)
+  );
+  const collectionIdTwo = conditionalToken.getCollectionId(
+    Bytes.fromUTF8(""),
+    conditionId,
+    BigInt.fromI32(2)
+  );
 
-  // Entities can be written to the store with `.save()`
-  entity.save()
+  const positionIdOne = conditionalToken.getPositionId(
+    Address.fromString(usdcAddress),
+    collectionIdOne
+  );
+  const positionIdTwo = conditionalToken.getPositionId(
+    Address.fromString(usdcAddress),
+    collectionIdTwo
+  );
 
-  // Note: If a handler doesn't require existing field values, it is faster
-  // _not_ to load the entity from the store. Instead, create it fresh with
-  // `new Entity(...)`, set the fields that should be updated and save the
-  // entity back to the store. Fields that were not set or unset remain
-  // unchanged, allowing for partial updates to be applied.
+  let entityOne = new TokenIdCondition(positionIdOne.toString());
+  let entityTwo = new TokenIdCondition(positionIdTwo.toString());
 
-  // It is also possible to access smart contracts from mappings. For
-  // example, the contract that has emitted the event can be connected to
-  // with:
-  //
-  // let contract = Contract.bind(event.address)
-  //
-  // The following functions can then be called on this contract to access
-  // state variables and other data:
-  //
-  // - contract.balanceOf(...)
-  // - contract.supportsInterface(...)
-  // - contract.payoutNumerators(...)
-  // - contract.getPositionId(...)
-  // - contract.balanceOfBatch(...)
-  // - contract.getConditionId(...)
-  // - contract.getCollectionId(...)
-  // - contract.getOutcomeSlotCount(...)
-  // - contract.payoutDenominator(...)
-  // - contract.isApprovedForAll(...)
+  entityOne.condition = conditionId;
+  entityOne.complement = positionIdTwo.toString();
+
+  entityTwo.condition = conditionId;
+  entityTwo.complement = positionIdOne.toString();
+
+  entityOne.save();
+  entityTwo.save();
 }
 
-export function handleConditionResolution(event: ConditionResolution): void {}
+function _setNetPosition(
+  user: Address,
+  condition: Bytes,
+  tokenOne: string,
+  tokenTwo: string
+): void {
+  let positiveBalanceAsset: string;
+  let positiveBalanceAmount: BigInt;
+  let tokenOneBalance = UserBalance.load(user.toHexString() + "-" + tokenOne);
+  let tokenTwoBalance = UserBalance.load(user.toHexString() + "-" + tokenTwo);
 
-export function handlePositionSplit(event: PositionSplit): void {}
+  if (tokenOneBalance == null) {
+    positiveBalanceAsset = tokenTwo;
+    positiveBalanceAmount = tokenTwoBalance!.balance;
+  } else if (tokenTwoBalance == null) {
+    positiveBalanceAsset = tokenOne;
+    positiveBalanceAmount = tokenOneBalance!.balance;
+  } else {
+    if (tokenOneBalance!.balance > tokenTwoBalance!.balance) {
+      positiveBalanceAsset = tokenOne;
+      positiveBalanceAmount = tokenOneBalance!.balance.minus(
+        tokenTwoBalance!.balance
+      );
+    } else {
+      positiveBalanceAsset = tokenTwo;
+      positiveBalanceAmount = tokenTwoBalance!.balance.minus(
+        tokenOneBalance!.balance
+      );
+    }
+  }
 
-export function handlePositionsMerge(event: PositionsMerge): void {}
+  let netUserBalance = NetUserBalance.load(
+    user.toHexString() + "-" + condition.toHexString()
+  );
 
-export function handlePayoutRedemption(event: PayoutRedemption): void {}
+  if (netUserBalance == null) {
+    netUserBalance = new NetUserBalance(
+      user.toHexString() + "-" + condition.toHexString()
+    );
+    netUserBalance.user = user;
+    netUserBalance.asset = positiveBalanceAsset;
+    netUserBalance.balance = positiveBalanceAmount;
+  } else {
+    netUserBalance.balance = positiveBalanceAmount;
+  }
 
-export function handleTransferSingle(event: TransferSingle): void {}
+  netUserBalance.save();
+}
+
+export function handleTransferSingle(event: TransferSingle): void {
+  // adjust sender address
+
+  const tokenId = event.params.id;
+  let tokenIdCondition = TokenIdCondition.load(tokenId.toString());
+
+  if (event.params.from != Address.fromString(AddressZero)) {
+    let senderBalance = UserBalance.load(
+      event.params.from.toHexString() + "-" + tokenId.toString()
+    ) as UserBalance; // sender will always have balance so we don't need to concern ourselves with null case
+    senderBalance.balance = senderBalance.balance.minus(event.params.value);
+    senderBalance.save();
+
+    _setNetPosition(
+      event.params.from,
+      tokenIdCondition!.condition,
+      tokenIdCondition!.id,
+      tokenIdCondition!.complement
+    );
+  }
+
+  if (event.params.to != Address.fromString(AddressZero)) {
+    let receiverBalance = UserBalance.load(
+      event.params.to.toHexString() + "-" + tokenId.toString()
+    );
+
+    if (receiverBalance == null) {
+      receiverBalance = new UserBalance(
+        event.params.to.toHexString() + "-" + tokenId.toString()
+      );
+      receiverBalance.user = event.params.to;
+      receiverBalance.asset = tokenId.toString();
+      receiverBalance.balance = event.params.value;
+    } else {
+      receiverBalance.balance = receiverBalance.balance.plus(
+        event.params.value
+      );
+    }
+    receiverBalance.save();
+
+    _setNetPosition(
+      event.params.to,
+      tokenIdCondition!.condition,
+      tokenIdCondition!.id,
+      tokenIdCondition!.complement
+    );
+  }
+}
+
+// what happens if they send to self? so we need to special case?
 
 export function handleTransferBatch(event: TransferBatch): void {}
-
-export function handleApprovalForAll(event: ApprovalForAll): void {}
-
-export function handleURI(event: URI): void {}

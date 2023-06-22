@@ -14,35 +14,15 @@ dataSources:
       apiVersion: 0.0.7
       language: wasm/assemblyscript
       entities:
-        - ConditionPreparation
-        - ConditionResolution
-        - PositionSplit
-        - PositionsMerge
-        - PayoutRedemption
-        - TransferSingle
-        - TransferBatch
-        - ApprovalForAll
-        - URI
+        - UserBalance
       abis:
         - name: CTF
           file: ./abis/CTF.json
       eventHandlers:
         - event: ConditionPreparation(indexed bytes32,indexed address,indexed bytes32,uint256)
           handler: handleConditionPreparation
-        - event: ConditionResolution(indexed bytes32,indexed address,indexed bytes32,uint256,uint256[])
-          handler: handleConditionResolution
-        - event: PositionSplit(indexed address,address,indexed bytes32,indexed bytes32,uint256[],uint256)
-          handler: handlePositionSplit
-        - event: PositionsMerge(indexed address,address,indexed bytes32,indexed bytes32,uint256[],uint256)
-          handler: handlePositionsMerge
-        - event: PayoutRedemption(indexed address,indexed address,indexed bytes32,bytes32,uint256[],uint256)
-          handler: handlePayoutRedemption
         - event: TransferSingle(indexed address,indexed address,indexed address,uint256,uint256)
           handler: handleTransferSingle
         - event: TransferBatch(indexed address,indexed address,indexed address,uint256[],uint256[])
           handler: handleTransferBatch
-        - event: ApprovalForAll(indexed address,indexed address,bool)
-          handler: handleApprovalForAll
-        - event: URI(string,indexed uint256)
-          handler: handleURI
       file: ./src/ctf.ts

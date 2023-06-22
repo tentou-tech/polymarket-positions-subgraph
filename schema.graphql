@@ -1,6 +1,21 @@
-type ExampleEntity @entity {
-  id: Bytes!
-  count: BigInt!
-  conditionId: Bytes! # bytes32
-  oracle: Bytes! # address
+type UserBalance @entity {
+  id: String! # address - tokenId
+  user: Bytes! # address
+  asset: TokenIdCondition! # tokenId
+  balance: BigInt! # balance
 }
+
+type NetUserBalance @entity {
+  id: String! # address - conditionId
+  user: Bytes! # address
+  asset: TokenIdCondition! # tokenId
+  balance: BigInt! # balance
+}
+
+type TokenIdCondition @entity {
+  id: String! # tokenId
+  condition: Bytes! # conditionId
+  complement: String! # complementary tokenId
+}
+
+# what we really want is net position
