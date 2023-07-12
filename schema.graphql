@@ -14,8 +14,6 @@ type NetUserBalance @entity {
 
 type TokenIdCondition @entity {
   id: String! # tokenId
-  condition: Bytes! # conditionId
+  condition: String! # conditionId
   complement: String! # complementary tokenId
 }
-
-# what we really want is net position

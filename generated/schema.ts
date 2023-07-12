@@ -216,17 +216,17 @@ export class TokenIdCondition extends Entity {
     this.set("id", Value.fromString(value));
   }
 
-  get condition(): Bytes {
+  get condition(): string {
     let value = this.get("condition");
     if (!value || value.kind == ValueKind.NULL) {
       throw new Error("Cannot return null for a required field.");
     } else {
-      return value.toBytes();
+      return value.toString();
     }
   }
 
-  set condition(value: Bytes) {
-    this.set("condition", Value.fromBytes(value));
+  set condition(value: string) {
+    this.set("condition", Value.fromString(value));
   }
 
   get complement(): string {

@@ -10,8 +10,7 @@ import {
   TokenIdCondition,
   UserBalance,
 } from "../generated/schema";
-import { usdcAddress } from "./utils/constants";
-import { AddressZero } from "@ethersproject/constants";
+import { usdcAddress, AddressZero } from "./utils/constants";
 
 export function handleConditionPreparation(event: ConditionPreparation): void {
   if (event.params.outcomeSlotCount != new BigInt(2)) {
@@ -47,11 +46,17 @@ export function handleConditionPreparation(event: ConditionPreparation): void {
   let entityOne = new TokenIdCondition(positionIdOne.toString());
   let entityTwo = new TokenIdCondition(positionIdTwo.toString());
 
-  entityOne.condition = conditionId;
+  entityOne.condition = conditionId.toHexString();
   entityOne.complement = positionIdTwo.toString();
 
-  entityTwo.condition = conditionId;
+  entityTwo.condition = conditionId.toHexString();
   entityTwo.complement = positionIdOne.toString();
+
+  // log.info(`registered entities with condition {} and positionIds {} and {}`, [
+  //   conditionId.toHexString(),
+  //   positionIdOne.toString(),
+  //   positionIdTwo.toString(),
+  // ]);
 
   entityOne.save();
   entityTwo.save();
@@ -59,7 +64,7 @@ export function handleConditionPreparation(event: ConditionPreparation): void {
 
 function _setNetPosition(
   user: Address,
-  condition: Bytes,
+  condition: string,
   tokenOne: string,
   tokenTwo: string
 ): void {
@@ -89,13 +94,11 @@ function _setNetPosition(
   }
 
   let netUserBalance = NetUserBalance.load(
-    user.toHexString() + "-" + condition.toHexString()
+    user.toHexString() + "-" + condition
   );
 
   if (netUserBalance == null) {
-    netUserBalance = new NetUserBalance(
-      user.toHexString() + "-" + condition.toHexString()
-    );
+    netUserBalance = new NetUserBalance(user.toHexString() + "-" + condition);
     netUserBalance.user = user;
     netUserBalance.asset = positiveBalanceAsset;
     netUserBalance.balance = positiveBalanceAmount;
@@ -106,55 +109,97 @@ function _setNetPosition(
   netUserBalance.save();
 }
 
-export function handleTransferSingle(event: TransferSingle): void {
-  // adjust sender address
-
-  const tokenId = event.params.id;
-  let tokenIdCondition = TokenIdCondition.load(tokenId.toString());
-
-  if (event.params.from != Address.fromString(AddressZero)) {
+function _adjustSenderBalance(
+  sender: Address,
+  tokenCondition: TokenIdCondition,
+  amount: BigInt
+): void {
+  // log.info(`adjusting sender balance; address: {}, token: {}, amount {}`, [
+  //   sender.toHexString(),
+  //   tokenCondition.id.toString(),
+  //   amount.toString(),
+  // ]);
+  if (sender != Address.fromString(AddressZero)) {
     let senderBalance = UserBalance.load(
-      event.params.from.toHexString() + "-" + tokenId.toString()
+      sender.toHexString() + "-" + tokenCondition.id.toString()
     ) as UserBalance; // sender will always have balance so we don't need to concern ourselves with null case
-    senderBalance.balance = senderBalance.balance.minus(event.params.value);
+    senderBalance.balance = senderBalance.balance.minus(amount);
     senderBalance.save();
 
     _setNetPosition(
-      event.params.from,
-      tokenIdCondition!.condition,
-      tokenIdCondition!.id,
-      tokenIdCondition!.complement
-    );
-  }
-
-  if (event.params.to != Address.fromString(AddressZero)) {
-    let receiverBalance = UserBalance.load(
-      event.params.to.toHexString() + "-" + tokenId.toString()
-    );
-
-    if (receiverBalance == null) {
-      receiverBalance = new UserBalance(
-        event.params.to.toHexString() + "-" + tokenId.toString()
-      );
-      receiverBalance.user = event.params.to;
-      receiverBalance.asset = tokenId.toString();
-      receiverBalance.balance = event.params.value;
-    } else {
-      receiverBalance.balance = receiverBalance.balance.plus(
-        event.params.value
-      );
-    }
-    receiverBalance.save();
-
-    _setNetPosition(
-      event.params.to,
-      tokenIdCondition!.condition,
-      tokenIdCondition!.id,
-      tokenIdCondition!.complement
+      sender,
+      tokenCondition.condition,
+      tokenCondition.id,
+      tokenCondition.complement
     );
   }
 }
 
-// what happens if they send to self? so we need to special case?
+function _adjustReceiverBalance(
+  receiver: Address,
+  tokenCondition: TokenIdCondition,
+  amount: BigInt
+): void {
+  // log.info(`adjusting receiver balance; address: {}, token: {}, amount {}`, [
+  //   receiver.toHexString(),
+  //   tokenCondition.id.toString(),
+  //   amount.toString(),
+  // ]);
+  if (receiver != Address.fromString(AddressZero)) {
+    let receiverBalance = UserBalance.load(
+      receiver.toHexString() + "-" + tokenCondition.id.toString()
+    );
 
-export function handleTransferBatch(event: TransferBatch): void {}
+    if (receiverBalance == null) {
+      receiverBalance = new UserBalance(
+        receiver.toHexString() + "-" + tokenCondition.id.toString()
+      );
+      receiverBalance.user = receiver;
+      receiverBalance.asset = tokenCondition.id.toString();
+      receiverBalance.balance = amount;
+    } else {
+      receiverBalance.balance = receiverBalance.balance.plus(amount);
+    }
+    receiverBalance.save();
+
+    _setNetPosition(
+      receiver,
+      tokenCondition.condition,
+      tokenCondition.id,
+      tokenCondition.complement
+    );
+  }
+}
+
+export function handleTransferSingle(event: TransferSingle): void {
+  const sender = event.params.from;
+  const receiver = event.params.to;
+  const tokenId = event.params.id;
+  let tokenIdCondition = TokenIdCondition.load(tokenId.toString());
+
+  if (tokenIdCondition == null) {
+    // might be a >2 outcome condition we don't have
+    return;
+  }
+
+  _adjustSenderBalance(sender, tokenIdCondition!, event.params.value);
+  _adjustReceiverBalance(receiver, tokenIdCondition!, event.params.value);
+}
+
+export function handleTransferBatch(event: TransferBatch): void {
+  const sender = event.params.from;
+  const receiver = event.params.to;
+
+  for (let i = 0; i < event.params.ids.length; i++) {
+    const tokenId = event.params.ids[i];
+    let tokenIdCondition = TokenIdCondition.load(tokenId.toString());
+
+    if (tokenIdCondition == null) {
+      // might be a >2 outcome condition we don't have
+      return;
+    }
+
+    _adjustSenderBalance(sender, tokenIdCondition, event.params.values[i]);
+    _adjustReceiverBalance(receiver, tokenIdCondition, event.params.values[i]);
+  }
+}
