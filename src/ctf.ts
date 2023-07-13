@@ -1,4 +1,4 @@
-import { BigInt, Address, Bytes } from "@graphprotocol/graph-ts";
+import { BigInt, Address, Bytes, log } from "@graphprotocol/graph-ts";
 import {
   CTF,
   ConditionPreparation,
@@ -11,55 +11,40 @@ import {
   UserBalance,
 } from "../generated/schema";
 import { usdcAddress, AddressZero } from "./utils/constants";
+import { calculatePositionIds } from "./utils/ctf-utls";
 
 export function handleConditionPreparation(event: ConditionPreparation): void {
-  if (event.params.outcomeSlotCount != new BigInt(2)) {
+  if (event.params.outcomeSlotCount.equals(new BigInt(2))) {
     // only handle binary case
     return;
   }
+
   let conditionId = event.params.conditionId;
 
-  const conditionalToken = CTF.bind(
-    Address.fromString(event.address.toHexString())
+  const positions = calculatePositionIds(
+    event.address.toHexString(),
+    event.params.conditionId.toHexString(),
+    usdcAddress,
+    event.params.outcomeSlotCount.toI32()
   );
 
-  const collectionIdOne = conditionalToken.getCollectionId(
-    Bytes.fromUTF8(""),
-    conditionId,
-    BigInt.fromI32(1)
-  );
-  const collectionIdTwo = conditionalToken.getCollectionId(
-    Bytes.fromUTF8(""),
-    conditionId,
-    BigInt.fromI32(2)
-  );
-
-  const positionIdOne = conditionalToken.getPositionId(
-    Address.fromString(usdcAddress),
-    collectionIdOne
-  );
-  const positionIdTwo = conditionalToken.getPositionId(
-    Address.fromString(usdcAddress),
-    collectionIdTwo
-  );
-
-  let entityOne = new TokenIdCondition(positionIdOne.toString());
-  let entityTwo = new TokenIdCondition(positionIdTwo.toString());
+  let entityOne = new TokenIdCondition(positions[0].toString());
+  let entityTwo = new TokenIdCondition(positions[1].toString());
 
   entityOne.condition = conditionId.toHexString();
-  entityOne.complement = positionIdTwo.toString();
+  entityOne.complement = positions[1].toString();
 
   entityTwo.condition = conditionId.toHexString();
-  entityTwo.complement = positionIdOne.toString();
-
-  // log.info(`registered entities with condition {} and positionIds {} and {}`, [
-  //   conditionId.toHexString(),
-  //   positionIdOne.toString(),
-  //   positionIdTwo.toString(),
-  // ]);
+  entityTwo.complement = positions[0].toString();
 
   entityOne.save();
   entityTwo.save();
+
+  // log.info(`registered entities with condition {} and positionIds {} and {}`, [
+  //   conditionId.toHexString(),
+  //   positions[0].toString(),
+  //   positions[1].toString(),
+  // ]);
 }
 
 function _setNetPosition(
@@ -175,10 +160,16 @@ export function handleTransferSingle(event: TransferSingle): void {
   const sender = event.params.from;
   const receiver = event.params.to;
   const tokenId = event.params.id;
+
+  // log.info(`handling single transfer for sender {} receiver {} token {}`, [
+  //   sender.toHexString(),
+  //   receiver.toHexString(),
+  //   tokenId.toString(),
+  // ]);
+
   let tokenIdCondition = TokenIdCondition.load(tokenId.toString());
 
   if (tokenIdCondition == null) {
-    // might be a >2 outcome condition we don't have
     return;
   }
 
