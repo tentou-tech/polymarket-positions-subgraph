@@ -104,7 +104,10 @@ function _adjustSenderBalance(
   //   tokenCondition.id.toString(),
   //   amount.toString(),
   // ]);
-  if (sender != Address.fromString(AddressZero)) {
+  if (
+    sender != Address.fromString(AddressZero) &&
+    amount.gt(BigInt.fromI32(0))
+  ) {
     let senderBalance = UserBalance.load(
       sender.toHexString() + "-" + tokenCondition.id.toString()
     ) as UserBalance; // sender will always have balance so we don't need to concern ourselves with null case
@@ -130,7 +133,10 @@ function _adjustReceiverBalance(
   //   tokenCondition.id.toString(),
   //   amount.toString(),
   // ]);
-  if (receiver != Address.fromString(AddressZero)) {
+  if (
+    receiver != Address.fromString(AddressZero) &&
+    amount.gt(BigInt.fromI32(0))
+  ) {
     let receiverBalance = UserBalance.load(
       receiver.toHexString() + "-" + tokenCondition.id.toString()
     );
