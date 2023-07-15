@@ -88,6 +88,7 @@ function _setNetPosition(
     netUserBalance.asset = positiveBalanceAsset;
     netUserBalance.balance = positiveBalanceAmount;
   } else {
+    netUserBalance.asset = positiveBalanceAsset;
     netUserBalance.balance = positiveBalanceAmount;
   }
 
