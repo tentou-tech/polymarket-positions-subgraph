@@ -1,13 +1,13 @@
 type UserBalance @entity {
   id: String! # address - tokenId
-  user: Bytes! # address
+  user: String! # address
   asset: TokenIdCondition! # tokenId
   balance: BigInt! # balance
 }
 
 type NetUserBalance @entity {
   id: String! # address - conditionId
-  user: Bytes! # address
+  user: String! # address
   asset: TokenIdCondition! # tokenId
   balance: BigInt! # balance
 }

@@ -84,7 +84,7 @@ function _setNetPosition(
 
   if (netUserBalance == null) {
     netUserBalance = new NetUserBalance(user.toHexString() + "-" + condition);
-    netUserBalance.user = user;
+    netUserBalance.user = user.toHexString();
     netUserBalance.asset = positiveBalanceAsset;
     netUserBalance.balance = positiveBalanceAmount;
   } else {
@@ -146,7 +146,7 @@ function _adjustReceiverBalance(
       receiverBalance = new UserBalance(
         receiver.toHexString() + "-" + tokenCondition.id.toString()
       );
-      receiverBalance.user = receiver;
+      receiverBalance.user = receiver.toHexString();
       receiverBalance.asset = tokenCondition.id.toString();
       receiverBalance.balance = amount;
     } else {
