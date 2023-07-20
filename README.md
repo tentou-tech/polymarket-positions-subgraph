@@ -1,10 +1,20 @@
 # positions-subgraph
 
+## Environment Variables
+
+Create a `.env` file with the following variables:
+
+```bash
+MATIC_RPC_URL=
+```
+
+## Local Deployment
+
 ```bash
 docker compose up
 ```
 
-## Restart graph node and clear volumes:
+### Restart graph node and clear volumes
 
 ```bash
 docker compose down
@@ -14,7 +24,7 @@ docker compose down
 sudo docker rm positions-subgraph_graph-node_1 && sudo docker rm positions-subgraph_ipfs_1 && sudo docker rm positions-subgraph_postgres_1 && sudo docker rm positions-subgraph_ganache_1
 ```
 
-## Create and deploy subgraph
+### Create and deploy subgraph
 
 While local subgraph node is running run:
 
@@ -41,3 +51,20 @@ query tokenIdConditions {
   }
 }
 ```
+
+## Running on M1 Chip
+
+To run locally on an M1 chip, you'll need to build a local copy of the graph-node docker image. To do this, clone the [graph-node repo](https://github.com/graphprotocol/graph-node) and run the following commands:
+
+```bash
+# Remove the original image
+docker rmi graphprotocol/graph-node:latest
+
+# Build the image
+./docker/build.sh
+
+# Tag the newly created image
+docker tag graph-node graphprotocol/graph-node:latest
+```
+
+Note: you likely will have to increase your Docker daemon memory capacity. In Docker desktop you can find this setting under Preferences > Resources > Advanced.
