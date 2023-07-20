@@ -14,6 +14,12 @@ type NetUserBalance @entity {
 
 type TokenIdCondition @entity {
   id: String! # tokenId
-  condition: String! # conditionId
+  condition: Condition! # conditionId
   complement: String! # complementary tokenId
+  outcomeIndex: BigInt! # outcome index
+}
+
+type Condition @entity {
+  id: String! # conditionId
+  payouts: [BigDecimal!] # resolution price
 }

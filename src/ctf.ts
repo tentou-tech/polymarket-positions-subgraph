@@ -1,14 +1,15 @@
-import { BigInt, Address, Bytes, log } from "@graphprotocol/graph-ts";
+import { BigInt, Address, BigDecimal } from "@graphprotocol/graph-ts";
 import {
-  CTF,
   ConditionPreparation,
   TransferSingle,
   TransferBatch,
+  ConditionResolution,
 } from "../generated/CTF/CTF";
 import {
   NetUserBalance,
   TokenIdCondition,
   UserBalance,
+  Condition,
 } from "../generated/schema";
 import { usdcAddress, AddressZero } from "./utils/constants";
 import { calculatePositionIds } from "./utils/ctf-utls";
@@ -20,6 +21,9 @@ export function handleConditionPreparation(event: ConditionPreparation): void {
   }
 
   let conditionId = event.params.conditionId;
+
+  let condition = new Condition(conditionId.toHexString());
+  condition.save();
 
   const positions = calculatePositionIds(
     event.address.toHexString(),
@@ -33,9 +37,11 @@ export function handleConditionPreparation(event: ConditionPreparation): void {
 
   entityOne.condition = conditionId.toHexString();
   entityOne.complement = positions[1].toString();
+  entityOne.outcomeIndex = BigInt.fromI32(0);
 
   entityTwo.condition = conditionId.toHexString();
   entityTwo.complement = positions[0].toString();
+  entityTwo.outcomeIndex = BigInt.fromI32(1);
 
   entityOne.save();
   entityTwo.save();
@@ -45,6 +51,27 @@ export function handleConditionPreparation(event: ConditionPreparation): void {
   //   positions[0].toString(),
   //   positions[1].toString(),
   // ]);
+}
+
+export function handleConditionResolution(event: ConditionResolution): void {
+  let conditionId = event.params.conditionId.toHexString();
+  let condition = Condition.load(conditionId);
+  if (condition == null) {
+    return;
+  }
+
+  let payoutNumerators = event.params.payoutNumerators;
+  let payoutDenominator = BigInt.fromI32(0);
+  for (let i = 0; i < payoutNumerators.length; i += 1) {
+    payoutDenominator = payoutDenominator.plus(payoutNumerators[i]);
+  }
+  let payoutDenominatorDec = payoutDenominator.toBigDecimal();
+  let payouts = new Array<BigDecimal>(payoutNumerators.length);
+  for (let i = 0; i < payouts.length; i += 1) {
+    payouts[i] = payoutNumerators[i].divDecimal(payoutDenominatorDec);
+  }
+  condition.payouts = payouts;
+  condition.save();
 }
 
 function _setNetPosition(
@@ -100,11 +127,6 @@ function _adjustSenderBalance(
   tokenCondition: TokenIdCondition,
   amount: BigInt
 ): void {
-  // log.info(`adjusting sender balance; address: {}, token: {}, amount {}`, [
-  //   sender.toHexString(),
-  //   tokenCondition.id.toString(),
-  //   amount.toString(),
-  // ]);
   if (
     sender != Address.fromString(AddressZero) &&
     amount.gt(BigInt.fromI32(0))
@@ -129,11 +151,6 @@ function _adjustReceiverBalance(
   tokenCondition: TokenIdCondition,
   amount: BigInt
 ): void {
-  // log.info(`adjusting receiver balance; address: {}, token: {}, amount {}`, [
-  //   receiver.toHexString(),
-  //   tokenCondition.id.toString(),
-  //   amount.toString(),
-  // ]);
   if (
     receiver != Address.fromString(AddressZero) &&
     amount.gt(BigInt.fromI32(0))
@@ -167,12 +184,6 @@ export function handleTransferSingle(event: TransferSingle): void {
   const sender = event.params.from;
   const receiver = event.params.to;
   const tokenId = event.params.id;
-
-  // log.info(`handling single transfer for sender {} receiver {} token {}`, [
-  //   sender.toHexString(),
-  //   receiver.toHexString(),
-  //   tokenId.toString(),
-  // ]);
 
   let tokenIdCondition = TokenIdCondition.load(tokenId.toString());
 
