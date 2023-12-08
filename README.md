@@ -1,5 +1,13 @@
 # positions-subgraph
 
+## Codegen
+
+Run the following command to generate the `generated` folder:
+
+```bash
+yarn codegen
+```
+
 ## Environment Variables
 
 Create a `.env` file with the following variables:
@@ -14,7 +22,7 @@ MATIC_RPC_URL=
 docker compose up
 ```
 
-### Restart graph node and clear volumes
+## Restart graph node and clear volumes
 
 ```bash
 docker compose down
@@ -52,7 +60,15 @@ query tokenIdConditions {
 }
 ```
 
-## Running on M1 Chip
+## Goldsky
+
+Build the subgraph with `yarn build` and then run the following to deploy:
+
+```bash
+goldsky subgraph deploy positions-subgraph/<version> --path .
+```
+
+## Running on an M1 Chip
 
 To run locally on an M1 chip, you'll need to build a local copy of the graph-node docker image. To do this, clone the [graph-node repo](https://github.com/graphprotocol/graph-node) and run the following commands:
 

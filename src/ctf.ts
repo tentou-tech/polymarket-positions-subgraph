@@ -11,7 +11,12 @@ import {
   UserBalance,
   Condition,
 } from "../generated/schema";
-import { usdcAddress, AddressZero } from "./utils/constants";
+import {
+  usdcAddress,
+  AddressZero,
+  negRiskAdapterAddress,
+  wrappedUsdcAddress,
+} from "./utils/constants";
 import { calculatePositionIds } from "./utils/ctf-utls";
 
 export function handleConditionPreparation(event: ConditionPreparation): void {
@@ -25,10 +30,18 @@ export function handleConditionPreparation(event: ConditionPreparation): void {
   let condition = new Condition(conditionId.toHexString());
   condition.save();
 
+  // if the oracle is the negRiskAdapter, then the collateral is wrapped USDC
+  // otherwise it's a standard market collateralized by USDC
+  const collateralAddress = event.params.oracle.equals(
+    Address.fromString(negRiskAdapterAddress)
+  )
+    ? wrappedUsdcAddress
+    : usdcAddress;
+
   const positions = calculatePositionIds(
     event.address.toHexString(),
     event.params.conditionId.toHexString(),
-    usdcAddress,
+    collateralAddress,
     event.params.outcomeSlotCount.toI32()
   );
 
