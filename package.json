@@ -8,6 +8,9 @@
     "create-local": "graph create --node http://localhost:8020/ positions-subgraph",
     "remove-local": "graph remove --node http://localhost:8020/ positions-subgraph",
     "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 positions-subgraph",
+    "create-prod": "graph create positions-subgraph --node https://graph-node-polygon.tentou.tech/",
+    "deploy-prod": "graph deploy positions-subgraph --ipfs http://ipfs.tentou.tech:5001 --node https://graph-node-polygon.tentou.tech/ subgraph.yaml",
+    "remove-prod": "graph remove --node https://graph-node-polygon.tentou.tech/ positions-subgraph",
     "test": "graph test"
   },
   "dependencies": {
